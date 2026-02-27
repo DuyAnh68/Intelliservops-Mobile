@@ -13,9 +13,10 @@ export default function RootLayout() {
         }}
         initialRouteName="Login"
       >
-        <Stack.Screen name="Login" />
         <Stack.Screen name="index" />
+        <Stack.Screen name="Login" />
         <Stack.Screen name="Welcome" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
     </SafeAreaProvider>
   );

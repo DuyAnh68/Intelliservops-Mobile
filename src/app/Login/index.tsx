@@ -1,10 +1,12 @@
 import LoginModal from "@/src/components/Modal/LoginModal";
 import { useAuthStore } from "@/src/stores/Auth/AuthStore";
+import { createShadow } from "@/src/utils/shadow";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
+  Animated,
   Dimensions,
   Image,
   StyleSheet,
@@ -13,35 +15,49 @@ import {
   View,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
+Dimensions.get("window");
 const smartHomeImage = require("@/src/assets/phong-khach-can-ho-smart-home_grande.jpg");
 
 export default function LoginScreen() {
   const [modalVisible, setModalVisible] = useState(true);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [scaleAnim] = useState(new Animated.Value(1));
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
 
   const handleLogin = async (email: string, password: string) => {
-    setIsLoggingIn(true);
     try {
       // Use "user" as default actorType for mobile app login
       const success = await login(email, password, "user");
       if (success) {
         setModalVisible(false);
-        router.replace("/");
+        // Always go to Welcome page after login
+        router.replace("/Welcome");
       } else {
         Alert.alert("Lỗi", "Email hoặc mật khẩu không chính xác.");
       }
-    } catch (error: any) {
+    } catch {
       Alert.alert("Lỗi", "Đăng nhập thất bại. Vui lòng thử lại.");
-    } finally {
-      setIsLoggingIn(false);
     }
   };
 
   const handleClose = () => {
     setModalVisible(false);
+  };
+
+  const handleLoginButtonPress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setModalVisible(true);
   };
 
   return (
@@ -58,26 +74,32 @@ export default function LoginScreen() {
       {/* Branding */}
       <View style={styles.branding}>
         <View style={styles.logoCircle}>
-          <Ionicons name="shield-checkmark" size={48} color="#fff" />
+          <Ionicons name="home-outline" size={48} color="#fff" />
         </View>
         <Text style={styles.appName}>IntelliServOps</Text>
         <Text style={styles.tagline}>Smart Service Management</Text>
 
         {/* Login Button */}
         {!modalVisible && (
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.8}
+          <Animated.View
+            style={{
+              transform: [{ scale: scaleAnim }],
+            }}
           >
-            <Ionicons
-              name="log-in-outline"
-              size={22}
-              color="#fff"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.loginButtonText}>Đăng Nhập</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={handleLoginButtonPress}
+              activeOpacity={0.9}
+            >
+              <Ionicons
+                name="log-in-outline"
+                size={24}
+                color="#fff"
+                style={{ marginRight: 10 }}
+              />
+              <Text style={styles.loginButtonText}>Đăng Nhập</Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
       </View>
 
@@ -141,15 +163,24 @@ const styles = StyleSheet.create({
   loginButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#007AFF",
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 40,
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginTop: 48,
+    ...createShadow({
+      color: "#007AFF",
+      offsetY: 8,
+      opacity: 0.4,
+      radius: 12,
+      elevation: 8,
+    }),
   },
   loginButtonText: {
     color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
 });

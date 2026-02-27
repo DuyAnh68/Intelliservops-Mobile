@@ -1,5 +1,6 @@
 import type { components } from "@/src/api/api-intelliservops-service";
 import apiClient from "@/src/hooks/apiClient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -13,6 +14,7 @@ export interface AuthState {
   refreshTokenValue: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
+  hasCompletedWelcome: boolean;
 
   // Actions
   login: (
@@ -25,6 +27,7 @@ export interface AuthState {
   getRefreshToken: () => string | null;
   setAuth: (user: AuthUser, tokens: TokenPair) => void;
   setTokens: (tokens: TokenPair) => void;
+  setWelcomeCompleted: (completed: boolean) => Promise<void>;
   reset: () => void;
 }
 
@@ -34,6 +37,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   refreshTokenValue: null,
   user: null,
   isAuthenticated: false,
+  hasCompletedWelcome: false,
 
   // ── Reset ─────────────────────────────────────────────────
   reset: () => {
@@ -42,6 +46,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       refreshTokenValue: null,
       user: null,
       isAuthenticated: false,
+      hasCompletedWelcome: false,
     });
   },
 
@@ -82,11 +87,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         user.role,
       );
 
+      // Check if user has completed welcome before
+      const welcomeKey = `welcome_completed_${user.id}`;
+      const hasCompletedWelcome =
+        (await AsyncStorage.getItem(welcomeKey)) === "true";
+
       set({
         token,
         refreshTokenValue: refreshToken,
         user,
         isAuthenticated: true,
+        hasCompletedWelcome,
       });
 
       return true;
@@ -134,6 +145,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       token: tokens.accessToken,
       refreshTokenValue: tokens.refreshToken,
     });
+  },
+
+  setWelcomeCompleted: async (completed) => {
+    const user = get().user;
+    if (user) {
+      const welcomeKey = `welcome_completed_${user.id}`;
+      if (completed) {
+        await AsyncStorage.setItem(welcomeKey, "true");
+      } else {
+        await AsyncStorage.removeItem(welcomeKey);
+      }
+      set({ hasCompletedWelcome: completed });
+    }
   },
 
   getAccessToken: () => get().token,

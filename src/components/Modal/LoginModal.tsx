@@ -1,22 +1,24 @@
+import { createShadow } from "@/src/utils/shadow";
+import { Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  View,
+  Animated,
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
-  Keyboard,
-  Dimensions,
-  Animated,
+  View,
 } from "react-native";
-import { useState, useEffect, useRef } from "react";
-import { Ionicons } from "@expo/vector-icons";
-import { createShadow } from "@/src/utils/shadow";
 
-const { width } = Dimensions.get("window");
+Dimensions.get("window");
 
 interface LoginModalProps {
   visible: boolean;
@@ -39,19 +41,73 @@ export default function LoginModal({
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const slideAnim = useRef(new Animated.Value(300)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const panY = useRef(new Animated.Value(0)).current;
+
+  const handleClose = useCallback(() => {
+    setEmail("");
+    setPassword("");
+    setEmailError("");
+    setPasswordError("");
+    setShowPassword(false);
+    onClose();
+  }, [onClose]);
+
+  const panResponder = useMemo(() => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (evt, { dy }) => dy > 10,
+      onPanResponderMove: (evt, { dy }) => {
+        if (dy > 0) {
+          panY.setValue(dy);
+        }
+      },
+      onPanResponderRelease: (evt, { dy }) => {
+        if (dy > 100) {
+          handleClose();
+        } else {
+          Animated.spring(panY, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+          }).start();
+        }
+      },
+    });
+  }, [handleClose, panY]);
 
   useEffect(() => {
     if (visible) {
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      panY.setValue(0);
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 65,
+          friction: 11,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      slideAnim.setValue(300);
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 300,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [visible]);
+  }, [visible, slideAnim, opacityAnim, panY]);
 
   const validateEmail = (text: string) => {
     setEmail(text);
@@ -89,15 +145,6 @@ export default function LoginModal({
     }
   };
 
-  const handleClose = () => {
-    setEmail("");
-    setPassword("");
-    setEmailError("");
-    setPasswordError("");
-    setShowPassword(false);
-    onClose();
-  };
-
   return (
     <Modal
       visible={visible}
@@ -106,7 +153,14 @@ export default function LoginModal({
       onRequestClose={handleClose}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.overlay}>
+        <Animated.View
+          style={[
+            styles.overlay,
+            {
+              opacity: opacityAnim,
+            },
+          ]}
+        >
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             style={styles.keyboardView}
@@ -114,11 +168,14 @@ export default function LoginModal({
             <Animated.View
               style={[
                 styles.modalContainer,
-                { transform: [{ translateY: slideAnim }] },
+                {
+                  transform: [{ translateY: Animated.add(slideAnim, panY) }],
+                  opacity: opacityAnim,
+                },
               ]}
             >
               {/* Header */}
-              <View style={styles.header}>
+              <View style={styles.header} {...panResponder.panHandlers}>
                 <View style={styles.handle} />
                 <TouchableOpacity
                   style={styles.closeButton}
@@ -128,134 +185,147 @@ export default function LoginModal({
                 </TouchableOpacity>
               </View>
 
-              {/* Logo / Title */}
-              <View style={styles.titleSection}>
-                <View style={styles.logoContainer}>
-                  <Ionicons name="shield-checkmark" size={40} color="#007AFF" />
-                </View>
-                <Text style={styles.title}>Đăng Nhập</Text>
-                <Text style={styles.subtitle}>
-                  Chào mừng bạn quay trở lại IntelliServOps
-                </Text>
-              </View>
-
-              {/* Form */}
-              <View style={styles.form}>
-                {/* Email Input */}
-                <View style={styles.inputGroup}>
-                  <View
-                    style={[
-                      styles.inputContainer,
-                      emailError ? styles.inputError : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="mail-outline"
-                      size={20}
-                      color={emailError ? "#FF3B30" : "#999"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Email"
-                      value={email}
-                      onChangeText={validateEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      placeholderTextColor="#999"
-                    />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+              >
+                {/* Logo / Title */}
+                <View style={styles.titleSection}>
+                  <View style={styles.logoContainer}>
+                    <Ionicons name="home-outline" size={40} color="#007AFF" />
                   </View>
-                  {emailError ? (
-                    <Text style={styles.errorText}>{emailError}</Text>
-                  ) : null}
+                  <Text style={styles.title}>Đăng Nhập</Text>
+                  <Text style={styles.subtitle}>
+                    Chào mừng bạn quay trở lại IntelliServOps
+                  </Text>
                 </View>
 
-                {/* Password Input */}
-                <View style={styles.inputGroup}>
-                  <View
-                    style={[
-                      styles.inputContainer,
-                      passwordError ? styles.inputError : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color={passwordError ? "#FF3B30" : "#999"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Mật khẩu"
-                      value={password}
-                      onChangeText={validatePassword}
-                      secureTextEntry={!showPassword}
-                      placeholderTextColor="#999"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowPassword(!showPassword)}
-                      style={styles.eyeButton}
+                {/* Form */}
+                <View style={styles.form}>
+                  {/* Email Input */}
+                  <View style={styles.inputGroup}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        emailError ? styles.inputError : null,
+                      ]}
                     >
                       <Ionicons
-                        name={showPassword ? "eye-off-outline" : "eye-outline"}
+                        name="mail-outline"
                         size={20}
-                        color="#999"
+                        color={emailError ? "#FF3B30" : "#999"}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        value={email}
+                        onChangeText={validateEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        placeholderTextColor="#999"
+                      />
+                    </View>
+                    {emailError ? (
+                      <Text style={styles.errorText}>{emailError}</Text>
+                    ) : null}
+                  </View>
+
+                  {/* Password Input */}
+                  <View style={styles.inputGroup}>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        passwordError ? styles.inputError : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={20}
+                        color={passwordError ? "#FF3B30" : "#999"}
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Mật khẩu"
+                        value={password}
+                        onChangeText={validatePassword}
+                        secureTextEntry={!showPassword}
+                        placeholderTextColor="#999"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={styles.eyeButton}
+                      >
+                        <Ionicons
+                          name={
+                            showPassword ? "eye-off-outline" : "eye-outline"
+                          }
+                          size={20}
+                          color="#999"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    {passwordError ? (
+                      <Text style={styles.errorText}>{passwordError}</Text>
+                    ) : null}
+                  </View>
+
+                  {/* Forgot Password */}
+                  <TouchableOpacity
+                    style={styles.forgotPassword}
+                    onPress={onForgotPassword}
+                  >
+                    <Text style={styles.forgotPasswordText}>
+                      Quên mật khẩu?
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Login Button */}
+                  <TouchableOpacity
+                    style={styles.loginButton}
+                    onPress={handleLogin}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.loginButtonText}>Đăng Nhập</Text>
+                  </TouchableOpacity>
+
+                  {/* Divider */}
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>hoặc</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* Social Login */}
+                  <View style={styles.socialRow}>
+                    <TouchableOpacity style={styles.socialButton}>
+                      <Ionicons name="logo-google" size={22} color="#DB4437" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.socialButton}>
+                      <Ionicons name="logo-apple" size={22} color="#000" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.socialButton}>
+                      <Ionicons
+                        name="logo-facebook"
+                        size={22}
+                        color="#1877F2"
                       />
                     </TouchableOpacity>
                   </View>
-                  {passwordError ? (
-                    <Text style={styles.errorText}>{passwordError}</Text>
-                  ) : null}
+
+                  {/* Sign Up */}
+                  <View style={styles.footer}>
+                    <Text style={styles.footerText}>Chưa có tài khoản? </Text>
+                    <TouchableOpacity onPress={onSignUp}>
+                      <Text style={styles.signupLink}>Đăng ký</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-
-                {/* Forgot Password */}
-                <TouchableOpacity
-                  style={styles.forgotPassword}
-                  onPress={onForgotPassword}
-                >
-                  <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
-                </TouchableOpacity>
-
-                {/* Login Button */}
-                <TouchableOpacity
-                  style={styles.loginButton}
-                  onPress={handleLogin}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.loginButtonText}>Đăng Nhập</Text>
-                </TouchableOpacity>
-
-                {/* Divider */}
-                <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>hoặc</Text>
-                  <View style={styles.dividerLine} />
-                </View>
-
-                {/* Social Login */}
-                <View style={styles.socialRow}>
-                  <TouchableOpacity style={styles.socialButton}>
-                    <Ionicons name="logo-google" size={22} color="#DB4437" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.socialButton}>
-                    <Ionicons name="logo-apple" size={22} color="#000" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.socialButton}>
-                    <Ionicons name="logo-facebook" size={22} color="#1877F2" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Sign Up */}
-                <View style={styles.footer}>
-                  <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-                  <TouchableOpacity onPress={onSignUp}>
-                    <Text style={styles.signupLink}>Đăng ký</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              </ScrollView>
             </Animated.View>
           </KeyboardAvoidingView>
-        </View>
+        </Animated.View>
       </TouchableWithoutFeedback>
     </Modal>
   );
@@ -270,13 +340,17 @@ const styles = StyleSheet.create({
   keyboardView: {
     justifyContent: "flex-end",
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   modalContainer: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    maxHeight: "92%",
+    paddingBottom: Platform.OS === "ios" ? 60 : 24,
+    maxHeight: "95%",
+    overflow: "hidden",
   },
   header: {
     alignItems: "center",
